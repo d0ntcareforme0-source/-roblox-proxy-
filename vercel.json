@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/v1/users/avatar-3d", "destination": "/api/avatar3d" }
+  ]
+}
