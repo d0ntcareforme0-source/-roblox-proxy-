@@ -11,23 +11,48 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "invalid host" });
       }
       const r = await fetch(url);
-      res.setHeader("Content-Type", r.headers.get("content-type") || "application/octet-stream");
+      res.setHeader(
+        "Content-Type",
+        r.headers.get("content-type") || "application/octet-stream"
+      );
       res.setHeader("Cache-Control", "public, max-age=3600");
       return res.status(r.status).send(Buffer.from(await r.arrayBuffer()));
     }
 
-    // โหมด 1: ดึง metadata ของอวาตาร์ 3D
+    // โหมด 1: ดึง metadata ของอวาตาร์ 3D (มีข้อมูล debug ช่วยหาสาเหตุ)
     if (!/^\d+$/.test(userId || "")) {
       return res.status(400).json({ error: "invalid userId" });
     }
-    const meta = await fetch(
+
+    const metaRes = await fetch(
       `https://thumbnails.roblox.com/v1/users/avatar-3d?userId=${userId}`
-    ).then((r) => r.json());
+    );
+    const meta = await metaRes.json();
 
     if (meta.state !== "Completed") {
-      return res.status(202).json({ state: meta.state });
+      return res.status(202).json({ debug: "meta", meta });
     }
-    const model = await fetch(meta.imageUrl).then((r) => r.json());
+
+    const modelRes = await fetch(meta.imageUrl);
+    const modelText = await modelRes.text();
+
+    let model;
+    try {
+      model = JSON.parse(modelText);
+    } catch {
+      return res.status(200).json({
+        debug: "not-json",
+        meta,
+        modelText: modelText.slice(0, 500),
+      });
+    }
+
+    if (!model || Object.keys(model).length === 0) {
+      return res
+        .status(200)
+        .json({ debug: "empty-model", meta, status: modelRes.status });
+    }
+
     return res.status(200).json(model); // มี obj, mtl, textures (hash)
   } catch (e) {
     return res.status(500).json({ error: String(e) });
