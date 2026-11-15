@@ -35,4 +35,42 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "invalid userId" });
     }
     if (!ROBLOX_COOKIE) {
-      return res.status(500).json({ error:
+      return res.status(500).json({ error: "ROBLOSECURITY env var is not set" });
+    }
+
+    const metaRes = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar-3d?userId=${userId}`,
+      { headers: { Cookie: `.ROBLOSECURITY=${ROBLOX_COOKIE}` } }
+    );
+    const meta = await metaRes.json();
+
+    if (meta.state !== "Completed") {
+      return res.status(202).json({ debug: "meta", meta });
+    }
+
+    const modelRes = await fetch(meta.imageUrl);
+    const modelText = await modelRes.text();
+
+    let model;
+    try {
+      model = JSON.parse(modelText);
+    } catch {
+      return res.status(200).json({
+        debug: "not-json",
+        meta,
+        modelText: modelText.slice(0, 500),
+      });
+    }
+
+    if (!model || Object.keys(model).length === 0) {
+      return res
+        .status(200)
+        .json({ debug: "empty-model", meta, status: modelRes.status });
+    }
+
+    res.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=600");
+    return res.status(200).json(model);
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+}
